@@ -5,64 +5,58 @@ local Skater = require 'player'
 local Camera = require 'hump.camera'
 
 -- GLOBALS
-local ymax
 local power = 0
 local dp = 70000
 local VX = 100
 local p = Skater(100, 0, VX)
-local jump, touch = false, false
-local w, h
 local tr
-local floors, f, fxi, fyi = {}
+local fxi, fyi
 local parc = Parc()
-parc.floors = floors
 local olddy, dy = 0, 0
 local sign = 1
-local camera = Camera(p.x, p.y, 0.5)
--- camera.smoother = Camera.smooth.damped(1)
+local camera = Camera(p.x, p.y, 1)
+-- camera.smoother = Camera.smooth.damped(10)
 
 math.randomseed(os.time())
 
 function love.load()
-  w, h = love.graphics.getDimensions()
-  ymax = h - 50
-  p.y = ymax
+  parc:setCamera(camera)
+  p.y = parc.yMax
 end
 
 function love.update(dt)
-  dt = .8 * dt
-  if not PAUSE then
+  -- dt = .8 * dt
   -- trigger jump
-  if touch and not jump then
+  if p.isPushing and not p.isJumping then
     power = math.min(power + dp * dt, 40000)
     tr = {p.x, p.y, math.pow(VX / p.vx, 2) * VX / 500, power / 100, sign}
   end
 
   -- fall from floor
-  if f then
-    if f.type == 'seg' then
-      if fallFromSeg(p.x, p.vx, unpack(f)) then
-        jump, f = true, nil
+  if p.floor then
+    if p.floor.type == 'seg' then
+      if fallFromSeg(p.x, p.vx, unpack(p.floor)) then
+        p.isJumping, p.floor = true, nil
         tr = {p.x, p.y, math.abs(p.vx) / 500, 0, sign}
       end
-    elseif f.type == 'arc' then
-      if fallFromArc(p.x, p.vx, unpack(f)) then
-          jump, f = true, nil
-          tr = {p.x, p.y, math.abs(p.vx) / 500, 0, sign}
+    elseif p.floor.type == 'arc' then
+      if fallFromArc(p.x, p.vx, unpack(p.floor)) then
+        p.isJumping, p.floor = true, nil
+        tr = {p.x, p.y, math.abs(p.vx) / 500, 0, sign}
       end
     end
   end
 
   -- update speed
   print('old speed', p.vx)
-  if f then
-    if f.type == 'seg' then
-      acc = 1e3 * dySeg(p.x, unpack(f))
-    elseif f.type == 'arc' then
-      acc = 1e2 * dyArc(p.x, unpack(f))
+  if p.floor then
+    if p.floor.type == 'seg' then
+      acc = 1e3 * dySeg(p.x, unpack(p.floor))
+    elseif p.floor.type == 'arc' then
+      acc = 1e1 * dyArc(p.x, unpack(p.floor))
     end
     p.vx = p.vx + acc * dt
-  elseif not jump then
+  elseif not p.isJumping then
     p.vx = p.vx + (1--[[sign]] * VX - p.vx) * dt
   end
   if p.vx < 0 then
@@ -73,8 +67,8 @@ function love.update(dt)
   print('new speed', p.vx)
 
   -- resolve jump
-  if jump then
-    f, fxi, fyi = nil, nil, nil
+  if p.isJumping then
+    p.floor, fxi, fyi = nil, nil, nil
     power = 0
     olddy = dy
     dy = yJump(p.x, unpack(tr)) - p.y
@@ -83,7 +77,7 @@ function love.update(dt)
     -- print(string.format('testing seg : {%d, %d} --- {%d, %d}', x, p.y + olddy, x + p.vx * dt, p.y + dy))
       -- test floor intersection
       _f, _fxi, _fyi = nil, nil, nil
-      for i, floor in ipairs(floors) do
+      for i, floor in ipairs(parc.floors) do
         if floor.type == 'seg' then
           -- print(string.format('              {%d, %d} --- {%d, %d}', unpack(floor)))
           _fxi, _fyi = interSegs(p.x, p.y + olddy, p.x + p.vx * dt, p.y + dy, floor[1], floor[2], floor[3], floor[4])
@@ -97,22 +91,21 @@ function love.update(dt)
       end
       if fxi and fyi then
         p.y = fyi
-        f = _f
+        p.floor = _f
         olddy, dy = 0, 0
-        jump = false
+        p.isJumping = false
       end
       --default floor
-      if jump and p.y + dy > ymax then
-        -- print('jump and p.y + dy > ymax :', p.y, '+', dy, '>', ymax)
-        p.y = ymax
+      if p.isJumping and p.y + dy > parc.yMax then
+        -- print('jump and p.y + dy > parc.yMax :', p.y, '+', dy, '>', parc.yMax)
+        p.y = parc.yMax
         olddy, dy = 0, 0
-        jump = false
+        p.isJumping = false
       end
     end
   end
-  movePlayer(p, f, p.vx * dt)
-  moveLevel(floors, w, h, camera)
-  end
+  p:update(dt)
+  parc:update()
   camera:lockPosition(p.x, p.y)
 end
 
@@ -120,14 +113,14 @@ function love.draw()
   camera:attach()
   -- position & trajectory
   love.graphics.setColor(1, 0, 0)
-  if jump then
+  if p.isJumping then
     if olddy < dy then
       love.graphics.setColor(0, 1, 0)
     end
     love.graphics.circle('fill', p.x, yJump(p.x, unpack(tr)), 10)
     drawJump(unpack(tr))
   else
-    if touch then
+    if p.isPushing then
       drawJump(p.x, p.y, math.pow(VX / p.vx, 2) * VX / 500, power / 100, sign)
     end
     print(p.x, p.y)
@@ -148,11 +141,10 @@ function love.keypressed(key)
   elseif key == 'p' then
     PAUSE = not PAUSE
   else
-    touch = true
+    p:push()
   end
 end
 
 function love.keyreleased(key)
-  touch = false
-  jump = true
+  p:jump()
 end
