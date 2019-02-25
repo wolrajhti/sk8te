@@ -19,7 +19,7 @@ parc.floors = floors
 local olddy, dy = 0, 0
 local sign = 1
 local camera = Camera(p.x, p.y, 0.5)
-camera.smoother = Camera.smooth.damped(1)
+-- camera.smoother = Camera.smooth.damped(1)
 
 math.randomseed(os.time())
 
@@ -30,6 +30,7 @@ function love.load()
 end
 
 function love.update(dt)
+  dt = .8 * dt
   if not PAUSE then
   -- trigger jump
   if touch and not jump then
@@ -76,7 +77,6 @@ function love.update(dt)
     f, fxi, fyi = nil, nil, nil
     power = 0
     olddy = dy
-    tr[1] = tr[1] - p.vx * dt
     dy = yJump(p.x, unpack(tr)) - p.y
     -- falling
     if olddy < dy then
@@ -110,9 +110,8 @@ function love.update(dt)
       end
     end
   end
-
-  moveLevel(floors, w, h, p.vx * dt)
-  movePlayer(p, f)
+  movePlayer(p, f, p.vx * dt)
+  moveLevel(floors, w, h, camera)
   end
   camera:lockPosition(p.x, p.y)
 end
@@ -139,6 +138,8 @@ function love.draw()
   parc:draw()
   camera:detach()
   love.graphics.print(string.format('x, y = %d, %d\nvx, power = %f, %d\n%d', p.x, p.y, p.vx, power, sign), 200, 100)
+  local p, q = love.graphics.getDimensions()
+  love.graphics.line(p / 2, 0, p / 2, q)
 end
 
 function love.keypressed(key)

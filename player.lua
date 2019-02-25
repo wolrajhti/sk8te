@@ -5,7 +5,8 @@ function Skater:initialize(x, y, vx, vy)
   self.vx, self.vy = vx, vy
 end
 
-function movePlayer(p, f)
+function movePlayer(p, f, dx)
+  p.x = p.x + dx
   -- update position
   if f then
     if f.type == 'seg' then

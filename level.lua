@@ -14,39 +14,36 @@ function Parc:draw()
   end
 end
 
-function moveLevel(floors, w, h, dx)
+function moveLevel(floors, w, h, camera)
+  local x1, y1 = camera:worldCoords(0, 0, 0, 0, w, h)
+  local x2, y2 = camera:worldCoords(w, h, 0, 0, w, h)
   -- push new floors
-  while #floors < 5 do
-    local rx = math.random(-1 * w, 2 * w)
-    local ry = math.random(50, h - 50)
-    local len = math.random(0.8 * w, 2 * w)
-    if math.random() > .5 then
-      table.insert(floors, {
-        rx, ry,
-        rx + len, ry + math.random(-40, 40),
-        type = 'seg'
-      })
+  local i, floor = 1, nil
+  while i < 10 do
+    floor = floors[i]
+    if not floor then
+      local rx = math.random(-1 * w, 2 * w)
+      local ry = math.random(50, h - 50)
+      local len = math.random(0.8 * w, 2 * w)
+      if math.random() > .5 then
+        local a, b = camera:worldCoords(rx, ry, 0, 0, w, h)
+        local c, d = camera:worldCoords(rx + len, ry + math.random(-40, 40), 0, 0, w, h)
+        table.insert(floors, {
+          a, b, c, d,
+          type = 'seg'
+        })
+      else
+        local a, b = camera:worldCoords(len, ry, 0, 0, w, h)
+        table.insert(floors, {
+          a, b, math.random(50, 100),
+          type = 'arc'
+        })
+      end
+      i = i + 1
+    elseif floor[1] > x2 or floor[3] < x1 then
+      table.remove(floors, i)
     else
-      table.insert(floors, {
-        len, ry, math.random(50, 100),
-        type = 'arc'
-      })
-    end
-  end
-
-  -- update and pop old floors
-  for i, floor in ipairs(floors) do
-    if floor.type == 'seg' then
-      floor[1] = floor[1] - dx
-      floor[3] = floor[3] - dx
-      if floor[3] < 0 then
-        table.remove(floors, i)
-      end
-    elseif floor.type == 'arc' then
-      floor[1] = floor[1] - dx
-      if floor[1] + floor[3] < 0 then
-        table.remove(floors, i)
-      end
+      i = i + 1
     end
   end
 end
